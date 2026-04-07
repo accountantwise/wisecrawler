@@ -86,6 +86,7 @@ def crawl_site(self, job_id: str, crawl_request_dict: dict) -> None:
                 headers=_BROWSER_HEADERS,
                 follow_redirects=True,
                 timeout=request.scrapeOptions.timeout / 1000,
+                verify="/etc/ssl/certs/ca-certificates.crt",
             ) as client:
                 resp = client.get(url)
                 resp.raise_for_status()

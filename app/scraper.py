@@ -79,6 +79,7 @@ async def _fetch_with_httpx(url: str, timeout: int) -> tuple[str, int]:
         headers=_BROWSER_HEADERS,
         follow_redirects=True,
         timeout=timeout / 1000,
+        verify="/etc/ssl/certs/ca-certificates.crt",
     ) as client:
         resp = await client.get(url)
         resp.raise_for_status()
