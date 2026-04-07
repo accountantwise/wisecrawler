@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+httpx
+playwright
+beautifulsoup4
+markdownify
+celery[redis]
+redis
+pydantic-settings
