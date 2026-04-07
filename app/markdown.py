@@ -17,6 +17,8 @@ def _remove_noise(soup: BeautifulSoup) -> None:
             el.decompose()
 
     for el in soup.find_all(True):
+        if el.attrs is None:  # already decomposed (child of a removed parent)
+            continue
         classes = " ".join(el.get("class", []))
         ids = el.get("id", "")
         if _AD_CLASS_PATTERNS.search(classes) or _AD_CLASS_PATTERNS.search(ids):
