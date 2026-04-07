@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from typing import Optional
 
 import httpx
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from playwright.async_api import async_playwright, Browser, Playwright
 
 from app.config import settings
 from app.markdown import clean_html
 from app.models import ScrapeRequest, ScrapeResult, PageMetadata
+
+logger = logging.getLogger(__name__)
 
 _playwright: Optional[Playwright] = None
 _browser: Optional[Browser] = None
@@ -53,10 +56,13 @@ def _extract_metadata(html: str, url: str, status_code: int) -> PageMetadata:
         el = soup.find("meta", attrs={"name": name}) or soup.find(
             "meta", attrs={"property": name}
         )
-        return el.get("content") if el else None
+        if not isinstance(el, Tag):
+            return None
+        value = el.get("content")
+        return str(value) if value is not None else None
 
     title_tag = soup.find("title")
-    title = title_tag.get_text(strip=True) if title_tag else None
+    title = title_tag.get_text(strip=True) if isinstance(title_tag, Tag) else None
 
     return PageMetadata(
         title=title or meta("og:title"),
@@ -94,11 +100,14 @@ async def _fetch_with_playwright(url: str, wait_for: int, timeout: int) -> tuple
         try:
             response = await page.goto(
                 url,
-                wait_until="networkidle",
+                wait_until="domcontentloaded",
                 timeout=timeout,
             )
             if wait_for > 0:
                 await page.wait_for_timeout(wait_for)
+            else:
+                # Give JS a moment to render without blocking on networkidle
+                await page.wait_for_timeout(500)
             html = await page.content()
             status = response.status if response else 200
         finally:
