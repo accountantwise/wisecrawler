@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
+import traceback
 import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
+
+logging.basicConfig(level=logging.INFO)
 
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Request, Depends
@@ -57,7 +61,8 @@ async def scrape_url(body: ScrapeRequest, request: Request):
     try:
         result = await scrape(body)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=traceback.format_exc())
     return ScrapeResponse(success=True, data=result)
 
 
