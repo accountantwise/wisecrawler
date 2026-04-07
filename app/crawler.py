@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-import asyncio
 import json
-import uuid
+import logging
 from urllib.parse import urljoin, urlparse
 
 from bs4 import BeautifulSoup
 from celery import Celery
 
+logger = logging.getLogger(__name__)
+
 from app.config import settings
-from app.models import CrawlRequest, ScrapeRequest, ScrapeResult
+from app.models import CrawlRequest, ScrapeResult
 
 celery_app = Celery("crawler", broker=settings.redis_url, backend=settings.redis_url)
 
@@ -91,6 +92,7 @@ def crawl_site(self, job_id: str, crawl_request_dict: dict) -> None:
                 html = resp.text
                 status = resp.status_code
         except Exception as exc:
+            logger.error("Failed to fetch %s: %s: %s", url, type(exc).__name__, exc)
             r.rpush(
                 results_key,
                 json.dumps(
@@ -103,7 +105,6 @@ def crawl_site(self, job_id: str, crawl_request_dict: dict) -> None:
                             "title": None,
                             "description": None,
                             "ogImage": None,
-                            "error": str(exc),
                         },
                     }
                 ),
