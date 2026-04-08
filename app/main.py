@@ -13,17 +13,25 @@ import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 
+from app.ai_client import AIClientError, _PROVIDER_DEFAULTS, complete as ai_complete
 from app.config import settings
 from app.crawler import crawl_site
 from app.models import (
+    CrawlAnalyzeRequest,
+    CrawlAnalyzeResponse,
     CrawlJobStarted,
     CrawlRequest,
     CrawlStatus,
+    ScrapeAnalyzeRequest,
+    ScrapeAnalyzeResponse,
+    ScrapeSummarizeRequest,
+    ScrapeSummarizeResponse,
     ScrapeRequest,
     ScrapeResponse,
     ScrapeResult,
 )
 from app.scraper import scrape, start_browser, stop_browser
+from app.token_utils import aggregate_pages
 
 _redis: Optional[aioredis.Redis] = None
 
@@ -64,6 +72,121 @@ async def scrape_url(body: ScrapeRequest, request: Request):
         logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
         raise HTTPException(status_code=500, detail=traceback.format_exc())
     return ScrapeResponse(success=True, data=result)
+
+
+@app.post("/v1/scrape/analyze", response_model=ScrapeAnalyzeResponse)
+async def scrape_and_analyze(body: ScrapeAnalyzeRequest, request: Request):
+    _check_api_key(request)
+    scrape_req = ScrapeRequest(
+        url=body.url,
+        formats=["markdown"],
+        onlyMainContent=body.onlyMainContent,
+        waitFor=body.waitFor,
+        timeout=body.timeout,
+    )
+    try:
+        result = await scrape(scrape_req)
+    except Exception as exc:
+        logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    content = result.markdown or ""
+    if not content.strip():
+        raise HTTPException(status_code=422, detail="No markdown content extracted")
+
+    try:
+        analysis = await ai_complete(body.prompt, content)
+    except AIClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    provider = settings.ai_provider
+    return ScrapeAnalyzeResponse(
+        success=True,
+        url=body.url,
+        analysis=analysis,
+        markdown=content,
+        provider=provider,
+        model=settings.ai_model or _PROVIDER_DEFAULTS[provider],
+    )
+
+
+@app.post("/v1/scrape/summarize", response_model=ScrapeSummarizeResponse)
+async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
+    _check_api_key(request)
+    scrape_req = ScrapeRequest(
+        url=body.url,
+        formats=["markdown"],
+        onlyMainContent=body.onlyMainContent,
+        waitFor=body.waitFor,
+        timeout=body.timeout,
+    )
+    try:
+        result = await scrape(scrape_req)
+    except Exception as exc:
+        logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    content = result.markdown or ""
+    if not content.strip():
+        raise HTTPException(status_code=422, detail="No markdown content extracted")
+
+    try:
+        summary = await ai_complete(settings.ai_summarize_prompt, content)
+    except AIClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    provider = settings.ai_provider
+    return ScrapeSummarizeResponse(
+        success=True,
+        url=body.url,
+        summary=summary,
+        provider=provider,
+        model=settings.ai_model or _PROVIDER_DEFAULTS[provider],
+    )
+
+
+@app.post("/v1/crawl/analyze", response_model=CrawlAnalyzeResponse)
+async def analyze_crawl(body: CrawlAnalyzeRequest, request: Request):
+    _check_api_key(request)
+    job_key = f"crawl:{body.crawl_id}"
+    results_key = f"crawl:{body.crawl_id}:results"
+
+    job = await _redis.hgetall(job_key)
+    if not job:
+        raise HTTPException(status_code=404, detail="Crawl job not found")
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=409, detail=f"Crawl not yet complete: {job.get('status')}")
+
+    raw_results = await _redis.lrange(results_key, 0, -1)
+    markdowns = [
+        ScrapeResult(**json.loads(r)).markdown or ""
+        for r in raw_results
+    ]
+    markdowns = [m for m in markdowns if m.strip()]
+    if not markdowns:
+        raise HTTPException(status_code=422, detail="No usable markdown found in crawl results")
+
+    combined, pages_included, was_truncated = aggregate_pages(
+        markdowns,
+        per_page_char_limit=settings.ai_max_tokens_input,
+        max_pages=settings.ai_max_pages,
+    )
+
+    try:
+        analysis = await ai_complete(body.prompt, combined)
+    except AIClientError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+    provider = settings.ai_provider
+    return CrawlAnalyzeResponse(
+        success=True,
+        crawl_id=body.crawl_id,
+        pages_analyzed=pages_included,
+        was_truncated=was_truncated,
+        analysis=analysis,
+        provider=provider,
+        model=settings.ai_model or _PROVIDER_DEFAULTS[provider],
+    )
 
 
 @app.post("/v1/crawl", response_model=CrawlJobStarted)

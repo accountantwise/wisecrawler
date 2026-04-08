@@ -57,3 +57,50 @@ class CrawlStatus(BaseModel):
     completed: int
     creditsUsed: int
     data: list[ScrapeResult]
+
+
+class ScrapeAnalyzeRequest(BaseModel):
+    url: str
+    prompt: str
+    onlyMainContent: bool = True
+    waitFor: int = 0
+    timeout: int = 30000
+
+
+class ScrapeAnalyzeResponse(BaseModel):
+    success: bool
+    url: str
+    analysis: str
+    markdown: Optional[str] = None
+    provider: str
+    model: str
+
+
+class ScrapeSummarizeRequest(BaseModel):
+    url: str
+    onlyMainContent: bool = True
+    waitFor: int = 0
+    timeout: int = 30000
+
+
+class ScrapeSummarizeResponse(BaseModel):
+    success: bool
+    url: str
+    summary: str
+    provider: str
+    model: str
+
+
+class CrawlAnalyzeRequest(BaseModel):
+    crawl_id: str
+    prompt: str
+
+
+class CrawlAnalyzeResponse(BaseModel):
+    success: bool
+    crawl_id: str
+    pages_analyzed: int
+    was_truncated: bool
+    analysis: str
+    provider: str
+    model: str
