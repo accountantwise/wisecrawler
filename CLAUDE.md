@@ -1,4 +1,4 @@
-# Opencrawl
+# WiseCrawler
 
 ## Project Overview
 A clone of Firecrawl — a web scraping and crawling API that converts websites into clean, LLM-ready markdown. Also supports AI-powered analysis and summarization of scraped/crawled content via OpenAI, Anthropic, Gemini, or OpenRouter.
