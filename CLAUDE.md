@@ -149,5 +149,5 @@ AI endpoints run in the API process (not the Celery worker):
 | 404 | Crawl job not found |
 | 409 | Crawl/analyze called on an in-progress crawl |
 | 422 | No markdown extracted from page, or all crawled pages are empty |
+| 400 | AI provider returned an error (bad key, rate limit, invalid model, etc.) |
 | 500 | Scrape/fetch error |
-| 502 | AI provider returned an error (bad key, rate limit, etc.) |
