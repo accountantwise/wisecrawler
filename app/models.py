@@ -1,7 +1,30 @@
 from __future__ import annotations
 
+import ipaddress
+import socket
 from typing import Literal, Optional
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, field_validator
+
+
+def _reject_internal_url(url: str) -> str:
+    """Raise ValueError if the URL resolves to a private/loopback address."""
+    from urllib.parse import urlparse
+    parsed = urlparse(url)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Invalid URL: missing hostname")
+    # Block obvious internal hostnames
+    if hostname.lower() in ("localhost",):
+        raise ValueError("Requests to internal hosts are not allowed")
+    try:
+        ip = ipaddress.ip_address(hostname)
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved:
+            raise ValueError("Requests to internal/private IP addresses are not allowed")
+    except ValueError as exc:
+        # Not a raw IP — it's a hostname; re-raise only our own errors
+        if "Requests to" in str(exc):
+            raise
+    return url
 
 
 class ScrapeRequest(BaseModel):
@@ -10,6 +33,11 @@ class ScrapeRequest(BaseModel):
     onlyMainContent: bool = True
     waitFor: int = 0
     timeout: int = 30000
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        return _reject_internal_url(v)
 
 
 class PageMetadata(BaseModel):
@@ -45,6 +73,11 @@ class CrawlRequest(BaseModel):
     allowBackwardLinks: bool = False
     scrapeOptions: ScrapeOptions = ScrapeOptions()
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        return _reject_internal_url(v)
+
 
 class CrawlJobStarted(BaseModel):
     id: str
@@ -66,6 +99,11 @@ class ScrapeAnalyzeRequest(BaseModel):
     waitFor: int = 0
     timeout: int = 30000
 
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        return _reject_internal_url(v)
+
 
 class ScrapeAnalyzeResponse(BaseModel):
     success: bool
@@ -81,6 +119,11 @@ class ScrapeSummarizeRequest(BaseModel):
     onlyMainContent: bool = True
     waitFor: int = 0
     timeout: int = 30000
+
+    @field_validator("url")
+    @classmethod
+    def validate_url(cls, v: str) -> str:
+        return _reject_internal_url(v)
 
 
 class ScrapeSummarizeResponse(BaseModel):

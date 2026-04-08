@@ -5,6 +5,7 @@ import logging
 import traceback
 import uuid
 from contextlib import asynccontextmanager
+from secrets import compare_digest
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
@@ -54,7 +55,7 @@ def _check_api_key(request: Request) -> None:
         return
     auth = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip()
-    if token != settings.api_key:
+    if not compare_digest(token, settings.api_key):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
@@ -70,7 +71,7 @@ async def scrape_url(body: ScrapeRequest, request: Request):
         result = await scrape(body)
     except Exception as exc:
         logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Failed to scrape URL")
     return ScrapeResponse(success=True, data=result)
 
 
