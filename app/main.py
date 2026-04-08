@@ -97,7 +97,7 @@ async def scrape_and_analyze(body: ScrapeAnalyzeRequest, request: Request):
     try:
         analysis = await ai_complete(body.prompt, content)
     except AIClientError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
 
     provider = settings.ai_provider
     return ScrapeAnalyzeResponse(
@@ -133,7 +133,7 @@ async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
     try:
         summary = await ai_complete(settings.ai_summarize_prompt, content)
     except AIClientError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
 
     provider = settings.ai_provider
     return ScrapeSummarizeResponse(
@@ -175,7 +175,7 @@ async def analyze_crawl(body: CrawlAnalyzeRequest, request: Request):
     try:
         analysis = await ai_complete(body.prompt, combined)
     except AIClientError as exc:
-        raise HTTPException(status_code=502, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc))
 
     provider = settings.ai_provider
     return CrawlAnalyzeResponse(
