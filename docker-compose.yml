@@ -2,6 +2,10 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    command: >
+      sh -c "redis-server ${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:
       - redis_data:/data
 

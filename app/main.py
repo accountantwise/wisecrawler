@@ -11,8 +11,11 @@ from typing import Optional
 logging.basicConfig(level=logging.INFO)
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from app.ai_client import AIClientError, _PROVIDER_DEFAULTS, complete as ai_complete
 from app.config import settings
@@ -36,6 +39,8 @@ from app.token_utils import aggregate_pages
 
 _redis: Optional[aioredis.Redis] = None
 
+limiter = Limiter(key_func=get_remote_address)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,7 +52,18 @@ async def lifespan(app: FastAPI):
     await _redis.aclose()
 
 
-app = FastAPI(title="Firecrawl Clone", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="WiseCrawler", version="1.0.0", lifespan=lifespan)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 def _check_api_key(request: Request) -> None:
@@ -65,6 +81,7 @@ async def health():
 
 
 @app.post("/v1/scrape", response_model=ScrapeResponse)
+@limiter.limit("30/minute")
 async def scrape_url(body: ScrapeRequest, request: Request):
     _check_api_key(request)
     try:
@@ -76,6 +93,7 @@ async def scrape_url(body: ScrapeRequest, request: Request):
 
 
 @app.post("/v1/scrape/analyze", response_model=ScrapeAnalyzeResponse)
+@limiter.limit("10/minute")
 async def scrape_and_analyze(body: ScrapeAnalyzeRequest, request: Request):
     _check_api_key(request)
     scrape_req = ScrapeRequest(
@@ -89,7 +107,7 @@ async def scrape_and_analyze(body: ScrapeAnalyzeRequest, request: Request):
         result = await scrape(scrape_req)
     except Exception as exc:
         logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to scrape URL")
 
     content = result.markdown or ""
     if not content.strip():
@@ -112,6 +130,7 @@ async def scrape_and_analyze(body: ScrapeAnalyzeRequest, request: Request):
 
 
 @app.post("/v1/scrape/summarize", response_model=ScrapeSummarizeResponse)
+@limiter.limit("10/minute")
 async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
     _check_api_key(request)
     scrape_req = ScrapeRequest(
@@ -125,7 +144,7 @@ async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
         result = await scrape(scrape_req)
     except Exception as exc:
         logging.error("Scrape failed for %s:\n%s", body.url, traceback.format_exc())
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to scrape URL")
 
     content = result.markdown or ""
     if not content.strip():
@@ -147,6 +166,7 @@ async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
 
 
 @app.post("/v1/crawl/analyze", response_model=CrawlAnalyzeResponse)
+@limiter.limit("10/minute")
 async def analyze_crawl(body: CrawlAnalyzeRequest, request: Request):
     _check_api_key(request)
     job_key = f"crawl:{body.crawl_id}"
@@ -191,6 +211,7 @@ async def analyze_crawl(body: CrawlAnalyzeRequest, request: Request):
 
 
 @app.post("/v1/crawl", response_model=CrawlJobStarted)
+@limiter.limit("10/minute")
 async def start_crawl(body: CrawlRequest, request: Request):
     _check_api_key(request)
     job_id = str(uuid.uuid4())
@@ -199,6 +220,7 @@ async def start_crawl(body: CrawlRequest, request: Request):
 
 
 @app.get("/v1/crawl/{job_id}", response_model=CrawlStatus)
+@limiter.limit("60/minute")
 async def get_crawl(job_id: str, request: Request):
     _check_api_key(request)
     job_key = f"crawl:{job_id}"
@@ -221,6 +243,7 @@ async def get_crawl(job_id: str, request: Request):
 
 
 @app.delete("/v1/crawl/{job_id}")
+@limiter.limit("10/minute")
 async def cancel_crawl(job_id: str, request: Request):
     _check_api_key(request)
     from app.crawler import celery_app

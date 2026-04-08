@@ -7,6 +7,7 @@ markdownify
 celery[redis]
 redis
 pydantic-settings
+slowapi>=0.1.9
 openai>=1.0.0
 anthropic>=0.25.0
 google-generativeai>=0.7.0
