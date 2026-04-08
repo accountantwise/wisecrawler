@@ -17,8 +17,8 @@ class AIClientError(Exception):
 async def _call_openai(model: str, prompt: str, content: str) -> str:
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
     try:
+        client = AsyncOpenAI(api_key=settings.openai_api_key or None)
         resp = await client.chat.completions.create(
             model=model,
             messages=[
@@ -34,8 +34,8 @@ async def _call_openai(model: str, prompt: str, content: str) -> str:
 async def _call_anthropic(model: str, prompt: str, content: str) -> str:
     from anthropic import AsyncAnthropic
 
-    client = AsyncAnthropic(api_key=settings.anthropic_api_key)
     try:
+        client = AsyncAnthropic(api_key=settings.anthropic_api_key or None)
         msg = await client.messages.create(
             model=model,
             max_tokens=4096,
@@ -50,8 +50,8 @@ async def _call_anthropic(model: str, prompt: str, content: str) -> str:
 async def _call_gemini(model: str, prompt: str, content: str) -> str:
     import google.generativeai as genai
 
-    genai.configure(api_key=settings.gemini_api_key)
     try:
+        genai.configure(api_key=settings.gemini_api_key)
         model_obj = genai.GenerativeModel(model, system_instruction=prompt)
         resp = await model_obj.generate_content_async(content)
         return resp.text
@@ -62,11 +62,11 @@ async def _call_gemini(model: str, prompt: str, content: str) -> str:
 async def _call_openrouter(model: str, prompt: str, content: str) -> str:
     from openai import AsyncOpenAI
 
-    client = AsyncOpenAI(
-        api_key=settings.openrouter_api_key,
-        base_url="https://openrouter.ai/api/v1",
-    )
     try:
+        client = AsyncOpenAI(
+            api_key=settings.openrouter_api_key or None,
+            base_url="https://openrouter.ai/api/v1",
+        )
         resp = await client.chat.completions.create(
             model=model,
             messages=[
