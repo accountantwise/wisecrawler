@@ -85,7 +85,7 @@ app/
 4. Convert to markdown via markdownify
 
 ### Crawl flow
-BFS from the seed URL; respects `maxDepth`, `limit`, `allowBackwardLinks`. Uses httpx-only (no Playwright) for speed. Results stored in Redis, expired after 1 hour.
+BFS from the seed URL; respects `maxDepth`, `limit`, `allowBackwardLinks`. Uses httpx-only (no Playwright) for speed. Results stored in Redis, expired after 1 hour. robots.txt is fetched once per domain and cached for the duration of the crawl; disallowed URLs are skipped. Failed requests are retried up to `SCRAPE_MAX_RETRIES` times with exponential backoff (base `SCRAPE_RETRY_BACKOFF` seconds), honouring `Retry-After` headers on 429 responses.
 
 ### AI analysis flow
 AI endpoints run in the API process (not the Celery worker):
@@ -117,6 +117,9 @@ AI endpoints run in the API process (not the Celery worker):
 | `PLAYWRIGHT_TIMEOUT` | `30000` | Nav timeout (ms) |
 | `MAX_CONCURRENCY` | `5` | Parallel Playwright pages |
 | `API_KEY` | _(empty)_ | Bearer token auth (disabled if empty) |
+| `CRAWL_RESPECT_ROBOTS` | `true` | Honour robots.txt during crawls |
+| `SCRAPE_MAX_RETRIES` | `3` | Max retries on transient errors / 429 / 5xx |
+| `SCRAPE_RETRY_BACKOFF` | `1.0` | Base backoff (seconds); doubles each retry |
 
 ### AI
 

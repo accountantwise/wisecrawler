@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
 from typing import Optional
@@ -81,15 +82,40 @@ def _needs_js(html: str) -> bool:
 
 
 async def _fetch_with_httpx(url: str, timeout: int) -> tuple[str, int]:
+    last_exc: Exception | None = None
     async with httpx.AsyncClient(
         headers=_BROWSER_HEADERS,
         follow_redirects=True,
         timeout=timeout / 1000,
         verify="/etc/ssl/certs/ca-certificates.crt",
     ) as client:
-        resp = await client.get(url)
-        resp.raise_for_status()
-        return resp.text, resp.status_code
+        for attempt in range(settings.scrape_max_retries + 1):
+            try:
+                resp = await client.get(url)
+                if resp.status_code == 429 or resp.status_code >= 500:
+                    if attempt < settings.scrape_max_retries:
+                        delay = settings.scrape_retry_backoff * (2 ** attempt)
+                        if resp.status_code == 429:
+                            with contextlib.suppress(Exception):
+                                delay = float(resp.headers.get("Retry-After", delay))
+                        logger.warning(
+                            "Retrying %s (status %d) in %.1fs (attempt %d/%d)",
+                            url, resp.status_code, delay, attempt + 1, settings.scrape_max_retries,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+                resp.raise_for_status()
+                return resp.text, resp.status_code
+            except httpx.TransportError as exc:
+                last_exc = exc
+                if attempt < settings.scrape_max_retries:
+                    delay = settings.scrape_retry_backoff * (2 ** attempt)
+                    logger.warning(
+                        "Retrying %s (transport error: %s) in %.1fs (attempt %d/%d)",
+                        url, exc, delay, attempt + 1, settings.scrape_max_retries,
+                    )
+                    await asyncio.sleep(delay)
+    raise last_exc  # type: ignore[misc]
 
 
 async def _fetch_with_playwright(url: str, wait_for: int, timeout: int) -> tuple[str, int]:

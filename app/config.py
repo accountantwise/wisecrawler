@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     openrouter_api_key: str = ""
 
+    # Crawl politeness
+    crawl_respect_robots: bool = True      # CRAWL_RESPECT_ROBOTS env var
+
+    # Retry / backoff
+    scrape_max_retries: int = 3            # SCRAPE_MAX_RETRIES
+    scrape_retry_backoff: float = 1.0      # SCRAPE_RETRY_BACKOFF (seconds, base)
+
     # Token budget controls
     ai_max_tokens_input: int = 100_000  # char ceiling per page before token counting
     ai_max_pages: int = 50              # max pages aggregated for crawl/analyze
