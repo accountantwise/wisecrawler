@@ -161,4 +161,5 @@ class SearchRequest(BaseModel):
 
 
 class SearchResponse(BaseModel):
+    success: bool
     results: list[SearchResult]

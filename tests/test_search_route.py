@@ -33,6 +33,7 @@ def test_search_success(client):
 
     assert response.status_code == 200
     body = response.json()
+    assert body["success"] is True
     assert len(body["results"]) == 2
     assert body["results"][0]["title"] == "T1"
     assert body["results"][1]["snippet"] == "S2"
@@ -49,6 +50,13 @@ def test_search_count_out_of_range(client):
     response = client.post("/v1/search", json={"query": "test", "count": 50}, headers=get_headers())
 
     assert response.status_code == 422
+
+
+def test_search_unauthorized(client):
+    with patch("app.main.settings") as mock_settings:
+        mock_settings.api_key = "secret-key"
+        response = client.post("/v1/search", json={"query": "test"})
+    assert response.status_code == 401
 
 
 def test_search_missing_api_key(client):

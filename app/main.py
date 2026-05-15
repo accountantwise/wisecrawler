@@ -192,7 +192,7 @@ async def search(body: SearchRequest, request: Request):
     except httpx.HTTPError as e:
         logging.warning("Search: network error reaching Brave: %s", type(e).__name__)
         raise HTTPException(status_code=502, detail="Upstream search service failed")
-    return SearchResponse(results=[SearchResult(**r) for r in results])
+    return SearchResponse(success=True, results=[SearchResult(**r) for r in results])
 
 
 @app.post("/v1/crawl/analyze", response_model=CrawlAnalyzeResponse)
