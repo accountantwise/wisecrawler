@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     playwright_timeout: int = 30000
     max_concurrency: int = 5
     api_key: str = ""
+    brave_api_key: str = ""
     port: int = 3002
 
     # AI provider
