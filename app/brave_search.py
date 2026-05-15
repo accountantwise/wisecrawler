@@ -6,6 +6,8 @@ import httpx
 
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 
 
@@ -42,5 +44,5 @@ async def query(q: str, count: int = 10) -> list[dict]:
         }
         for r in web_results
     ]
-    logging.info("Brave search: query_len=%d results=%d", len(q), len(results))
+    logger.info("Brave search: query_len=%d results=%d", len(q), len(results))
     return results
