@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 import socket
 from typing import Literal, Optional
-from pydantic import BaseModel, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 def _reject_internal_url(url: str) -> str:
@@ -147,3 +147,18 @@ class CrawlAnalyzeResponse(BaseModel):
     analysis: str
     provider: str
     model: str
+
+
+class SearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+
+
+class SearchRequest(BaseModel):
+    query: str
+    count: int = Field(default=10, ge=1, le=20)
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResult]

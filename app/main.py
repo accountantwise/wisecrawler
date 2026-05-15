@@ -10,6 +10,7 @@ from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 
+import httpx
 import redis.asyncio as aioredis
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -17,6 +18,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from app import brave_search
 from app.ai_client import AIClientError, _PROVIDER_DEFAULTS, complete as ai_complete
 from app.config import settings
 from app.crawler import crawl_site
@@ -33,6 +35,9 @@ from app.models import (
     ScrapeRequest,
     ScrapeResponse,
     ScrapeResult,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
 )
 from app.scraper import scrape, start_browser, stop_browser
 from app.token_utils import aggregate_pages
@@ -163,6 +168,31 @@ async def scrape_and_summarize(body: ScrapeSummarizeRequest, request: Request):
         provider=provider,
         model=settings.ai_model or _PROVIDER_DEFAULTS[provider],
     )
+
+
+@app.post("/v1/search", response_model=SearchResponse)
+@limiter.limit("20/minute")
+async def search(body: SearchRequest, request: Request):
+    _check_api_key(request)
+    q = body.query.strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="query must not be empty")
+    try:
+        results = await brave_search.query(q, count=body.count)
+    except ValueError as e:
+        logging.warning("Search: missing API key")
+        raise HTTPException(status_code=503, detail=str(e))
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        if status == 429:
+            logging.warning("Search: Brave rate limit hit")
+            raise HTTPException(status_code=429, detail="Search rate limit reached")
+        logging.warning("Search: Brave returned %d", status)
+        raise HTTPException(status_code=502, detail="Upstream search service failed")
+    except httpx.HTTPError as e:
+        logging.warning("Search: network error reaching Brave: %s", type(e).__name__)
+        raise HTTPException(status_code=502, detail="Upstream search service failed")
+    return SearchResponse(results=[SearchResult(**r) for r in results])
 
 
 @app.post("/v1/crawl/analyze", response_model=CrawlAnalyzeResponse)
