@@ -98,6 +98,7 @@ AI endpoints run in the API process (not the Celery worker):
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
+| POST | `/v1/search` | Search the web via Brave Search, returns ranked results |
 | POST | `/v1/scrape` | Scrape single URL → markdown/html |
 | POST | `/v1/scrape/analyze` | Scrape URL → AI analysis with custom prompt |
 | POST | `/v1/scrape/summarize` | Scrape URL → AI summary (default prompt) |
@@ -143,6 +144,12 @@ AI endpoints run in the API process (not the Celery worker):
 | `anthropic` | `claude-3-5-haiku-20241022` |
 | `gemini` | `gemini-1.5-flash` |
 | `openrouter` | `openai/gpt-4o-mini` |
+
+### Search
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BRAVE_API_KEY` | _(empty)_ | Brave Search API key. Required for `/v1/search`. Get one at https://brave.com/search/api/ |
 
 ## Error codes
 
