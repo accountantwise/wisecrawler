@@ -29,6 +29,7 @@ services:
       - AI_MAX_TOKENS_INPUT=${AI_MAX_TOKENS_INPUT:-100000}
       - AI_MAX_PAGES=${AI_MAX_PAGES:-50}
       - AI_SUMMARIZE_PROMPT=${AI_SUMMARIZE_PROMPT:-}
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
     depends_on:
       - redis
 
