@@ -1,0 +1,57 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      sh -c "redis-server ${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    networks:
+      - edge
+
+  api:
+    build: .
+    restart: unless-stopped
+    environment:
+      - PORT=${PORT:-3002}
+      - REDIS_URL=redis://redis:6379/0
+      - PLAYWRIGHT_TIMEOUT=${PLAYWRIGHT_TIMEOUT:-30000}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-5}
+      - API_KEY=${API_KEY:-}
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - AI_MODEL=${AI_MODEL:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - AI_MAX_TOKENS_INPUT=${AI_MAX_TOKENS_INPUT:-100000}
+      - AI_MAX_PAGES=${AI_MAX_PAGES:-50}
+      - AI_SUMMARIZE_PROMPT=${AI_SUMMARIZE_PROMPT:-}
+      - BRAVE_API_KEY=${BRAVE_API_KEY:-}
+    depends_on:
+      - redis
+    networks:
+      - edge
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: celery -A app.crawler worker --loglevel=info --concurrency=4
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - PLAYWRIGHT_TIMEOUT=${PLAYWRIGHT_TIMEOUT:-30000}
+      - MAX_CONCURRENCY=${MAX_CONCURRENCY:-5}
+      - API_KEY=${API_KEY:-}
+    depends_on:
+      - redis
+    networks:
+      - edge
+
+volumes:
+  redis_data:
+
+networks:
+  edge:
+    external: true
